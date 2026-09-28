@@ -2,7 +2,7 @@ module github.com/gerardrecinto/resonant-strike
 
 go 1.26.8
 
-require github.com/sharedcode/joltrin/v5 v5.6.1-0.20260927225350-f54e72dc58df
+require github.com/sharedcode/joltrin/v5 v5.7.0
 
 require (
 	github.com/goccy/go-json v0.9.11 // indirect
