@@ -17,8 +17,12 @@ import "github.com/gerardrecinto/resonant-strike/rollback"
 // JudgeTiming classifies frame's distance from the nearest beat, both given
 // in frames. framesPerBeat, perfectWindow, and goodWindow are all whole
 // frame counts so this stays fixed-point, consistent with everything else
-// this simulation hashes.
+// this simulation hashes. framesPerBeat must be at least 1, it is a
+// divisor; JudgeTiming panics if it is 0 rather than let the % below.
 func JudgeTiming(frame uint64, framesPerBeat uint64, perfectWindow uint64, goodWindow uint64) rollback.TimingJudgment {
+	if framesPerBeat == 0 {
+		panic("combat: JudgeTiming framesPerBeat must be at least 1")
+	}
 	phase := frame % framesPerBeat
 	dist := phase
 	if framesPerBeat-phase < dist {
@@ -34,10 +38,12 @@ func JudgeTiming(frame uint64, framesPerBeat uint64, perfectWindow uint64, goodW
 	}
 }
 
-// feintPriority lists chord bits in the fixed precedence order Resolve uses
-// when more than one bit is held: the first match wins. This is the
-// placeholder for the full 16-entry table described in the package doc.
-var feintPriority = []struct {
+// chordPriority lists chord bits in the fixed precedence order Resolve uses
+// to pick a move when more than one bit is held: the first match wins. This
+// is the placeholder for the full 16-entry table described in the package
+// doc; it has nothing to do with feints, those are handled separately by
+// the released parameter below.
+var chordPriority = []struct {
 	bit  rollback.StanceChord
 	move rollback.MoveID
 }{
@@ -58,7 +64,7 @@ func Resolve(chord rollback.StanceChord, judgment rollback.TimingJudgment, relea
 	if released {
 		return rollback.MoveFeint
 	}
-	for _, entry := range feintPriority {
+	for _, entry := range chordPriority {
 		if chord.Has(entry.bit) {
 			return entry.move
 		}

@@ -102,3 +102,12 @@ func Test_IsDefensive(t *testing.T) {
 		t.Fatalf("did not expect MoveJab to be defensive")
 	}
 }
+
+func Test_JudgeTiming_ZeroFramesPerBeatPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected JudgeTiming with framesPerBeat=0 to panic")
+		}
+	}()
+	JudgeTiming(0, 0, 2, 5)
+}

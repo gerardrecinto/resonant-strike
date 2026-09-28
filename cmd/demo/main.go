@@ -136,6 +136,19 @@ func applyMove(attacker, defender *rollback.FighterState, seq uint64, chord roll
 	if judgment == rollback.JudgmentMiss {
 		attacker.Stamina -= combat.MissStaminaCost(attacker.Conditioning)
 	}
+
+	// Neither rollback nor combat defines a knockout or exhaustion state
+	// yet, so this is just a floor: nothing in this demo lets health or
+	// stamina go negative and print as if that were a meaningful value.
+	clampNonNegative(&defender.Health)
+	clampNonNegative(&defender.Stamina)
+	clampNonNegative(&attacker.Stamina)
+}
+
+func clampNonNegative(v *int16) {
+	if *v < 0 {
+		*v = 0
+	}
 }
 
 // runRollbackDemo simulates discovering, right after resolving ledger
@@ -241,6 +254,11 @@ func chordName(c rollback.StanceChord) string {
 	}
 	if c.Has(rollback.ChordR2) {
 		s += "R2+"
+	}
+	if s == "" {
+		// StanceChord is a bare uint8; nothing stops a caller from
+		// constructing a value outside the four defined bits.
+		return fmt.Sprintf("unknown(%d)", uint8(c))
 	}
 	return s[:len(s)-1]
 }

@@ -46,6 +46,13 @@ deadlift one-rep maxes and cardio capacity carry into a match as a
 raises the stamina penalty for a missed rhythm input, there is no free lunch
 for a bigger lift number.
 
+This section is the design target. What `combat/resolve.go` actually
+implements today is a subset: move resolution doesn't yet look at the
+opponent's state, and only the stamina-penalty side of conditioning
+(`MissPenaltyScale`) is wired up, strength does not yet scale damage. See
+"What exists right now" below for the current line between built and
+designed.
+
 ## Why Joltrin, specifically
 
 Two different subsystems, two different reasons, covered in full in
