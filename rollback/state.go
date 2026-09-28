@@ -3,9 +3,10 @@
 //
 // Everything in this file is a plain value type with fixed-size numeric
 // fields, no floats, no pointers, no maps. That is not a style preference,
-// it is a correctness requirement: this state gets hashed for desync
-// detection and diffed frame to frame across two machines that may be a
-// different CPU architecture or Go build from each other. Floats round
+// it is a correctness requirement: this state is designed to be hashed for
+// desync detection and diffed frame to frame across two machines that may
+// be a different CPU architecture or Go build from each other (hashing
+// itself is not implemented yet, see docs/ARCHITECTURE.md). Floats round
 // differently across platforms and compilers; fixed-point integers do not.
 package rollback
 

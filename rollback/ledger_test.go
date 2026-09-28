@@ -129,6 +129,48 @@ func Test_Ledger_RevertToOutsideWindowErrors(t *testing.T) {
 	}
 }
 
+func Test_Ledger_RevertToLatestIsNoOp(t *testing.T) {
+	l := NewLedger(8)
+	for f := uint64(0); f <= 3; f++ {
+		l.Record(snapshotAt(f))
+	}
+
+	snap, err := l.RevertTo(l.Latest())
+	if err != nil {
+		t.Fatalf("RevertTo(latest): %v", err)
+	}
+	if snap.Frame != 3 {
+		t.Fatalf("got frame %d, want 3", snap.Frame)
+	}
+	if l.Latest() != 3 {
+		t.Fatalf("Latest() = %d, want 3 unchanged", l.Latest())
+	}
+	for f := uint64(0); f <= 3; f++ {
+		if _, ok := l.At(f); !ok {
+			t.Fatalf("frame %d should still be present after a no-op revert", f)
+		}
+	}
+}
+
+func Test_Ledger_RevertToFutureFrameErrors(t *testing.T) {
+	l := NewLedger(8)
+	l.Record(snapshotAt(0))
+	l.Record(snapshotAt(1))
+
+	if _, err := l.RevertTo(5); err == nil {
+		t.Fatalf("expected RevertTo(5) to fail, frame 5 has not been simulated yet")
+	}
+}
+
+func Test_NewLedger_ZeroWindowPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected NewLedger(0) to panic")
+		}
+	}()
+	NewLedger(0)
+}
+
 func Test_StanceChord_Has(t *testing.T) {
 	c := ChordL1 | ChordR2
 	if !c.Has(ChordL1) {

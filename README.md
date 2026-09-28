@@ -11,6 +11,15 @@ Rollback netcode and an adaptive AI opponent are built directly on
 [Joltrin](https://github.com/SharedCode/joltrin), an embedded Go storage
 engine, rather than a general-purpose database.
 
+![Terminal recording of the exhibition match: chord-stance strikes resolving on the beat, then a live rollback and resimulation partway through](docs/assets/demo.gif)
+
+`go run ./cmd/demo` runs this yourself, a scripted two-fighter exhibition
+match that exercises the real chord/timing/move resolution and, partway
+through, an actual network misprediction: it reverts the rollback ledger and
+resimulates with the corrected input, and the corrected outcome (a fighter's
+health reverting because a predicted jab turns out to have been a slip)
+comes out of the real code path, not a canned print statement.
+
 ## Core mechanics
 
 **Chord stances.** L1, L2, R1, and R2 combine into a `StanceChord`, a 4-bit
@@ -63,15 +72,25 @@ rollback/
   state.go        StanceChord, InputFrame, FighterState, ConditioningSnapshot, FrameSnapshot
   ledger.go       Ledger: Record, At, Latest, RevertTo, over an inmemory B-Tree
   ledger_test.go  retention window, revert, resimulate-and-overwrite, chord bitmask
+combat/
+  resolve.go      chord+judgment -> MoveID, damage scoring, miss stamina cost
+  resolve_test.go timing windows, single-chord resolution, feint, damage scaling
+cmd/demo/
+  main.go         scripted two-fighter exhibition match, CLI-only, real rollback demo
 docs/
   ARCHITECTURE.md   game loop, audio-sync manager, rollback manager, Joltrin engine placement
   VECTOR_SEARCH.md  embedding design and querying for the adaptive AI
+  assets/           demo.cast / demo.gif, the recording above
 ```
 
-This is the rollback data model and the design for the two systems built on
-top of it, not a playable build. Combat resolution (chord plus judgment into
-an actual Muay Thai action), the audio-sync manager, and the `ai/vector`
-integration described in the docs are designed but not implemented yet.
+This is a CLI-playable slice, not the full game: a real rollback ledger, a
+real (if partial) combat resolution table, and a scripted match that
+exercises both end to end, including an actual revert-and-resimulate. The
+combat table currently covers the empty chord plus each single-button hold
+(L1/L2/R1/R2), not all 16 chord combinations docs/ARCHITECTURE.md describes,
+see the package doc comment in `combat/resolve.go`. The audio-sync manager,
+rendering/WASM client, and the `ai/vector` adaptive-AI integration described
+in the docs are designed but not implemented yet.
 
 ## Building
 
@@ -80,6 +99,7 @@ git clone https://github.com/gerardrecinto/resonant-strike.git
 cd resonant-strike
 go build ./...
 go test ./...
+go run ./cmd/demo
 ```
 
 Requires `github.com/sharedcode/joltrin/v5` at v5.7.0 or later. Earlier
@@ -89,7 +109,8 @@ root's go.mod had no version suffix on a v2+ tag, which v5.7.0 fixes.
 ## Determinism
 
 Everything in `rollback.FrameSnapshot` is a fixed-size integer: no floats, no
-pointers, no maps. This state gets hashed for desync detection and diffed
-frame to frame across two machines that may not share a CPU architecture or
-Go build. Floats round differently across platforms and compilers, fixed-
-point integers do not. See the package doc comment in `rollback/state.go`.
+pointers, no maps. This state is designed to be hashed for desync detection
+and diffed frame to frame across two machines that may not share a CPU
+architecture or Go build (hashing itself is a follow-up, not implemented
+yet). Floats round differently across platforms and compilers, fixed-point
+integers do not. See the package doc comment in `rollback/state.go`.

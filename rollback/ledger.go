@@ -15,6 +15,9 @@ import (
 // it. A rollback that itself blocks on I/O defeats the reason to roll back.
 // Durable persistence (match history, training camp progression) is a
 // separate concern handled outside this package, see docs/ARCHITECTURE.md.
+//
+// Ledger is not safe for concurrent use. It is owned by a single match's
+// simulation loop.
 type Ledger struct {
 	frames inmemory.BtreeInterface[uint64, FrameSnapshot]
 	window uint64
@@ -25,7 +28,15 @@ type Ledger struct {
 // from the actual matchmaking latency budget: GGPO-style netcode typically
 // needs 6-8 frames of rollback depth at 60fps to cover one round trip on a
 // same-continent connection, more for cross-region play.
+//
+// window must be at least 1. A window of 0 would evict every frame in the
+// same call that records it, silently producing a ledger that never
+// retains anything At later asks for, so this panics instead of returning
+// something unusable.
 func NewLedger(window uint64) *Ledger {
+	if window < 1 {
+		panic("rollback: NewLedger window must be at least 1")
+	}
 	return &Ledger{
 		frames: inmemory.NewBtree[uint64, FrameSnapshot](true),
 		window: window,
@@ -62,9 +73,12 @@ func (l *Ledger) Latest() uint64 { return l.latest }
 // to resume simulation from. The caller resimulates forward from f+1 with
 // corrected inputs, calling Record again for each frame it recomputes.
 func (l *Ledger) RevertTo(f uint64) (FrameSnapshot, error) {
+	if f > l.latest {
+		return FrameSnapshot{}, fmt.Errorf("rollback: frame %d has not been simulated yet, latest is %d", f, l.latest)
+	}
 	snap, ok := l.At(f)
 	if !ok {
-		return FrameSnapshot{}, fmt.Errorf("rollback: frame %d is outside the retention window", f)
+		return FrameSnapshot{}, fmt.Errorf("rollback: frame %d has been evicted from the retention window", f)
 	}
 	for cur := f + 1; cur <= l.latest; cur++ {
 		l.frames.Remove(cur)
