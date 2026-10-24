@@ -1,0 +1,82 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "combat/**", "rollback/**", "cmd/**", "go.mod", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Assemble site
+        run: |
+          mkdir -p _site pagesdemo
+          cp site/index.html _site/
+          cat > pagesdemo/main.go <<'GOEOF'
+          //go:build js && wasm
+          
+          package main
+          
+          import (
+          	"syscall/js"
+          
+          	"github.com/gerardrecinto/resonant-strike/combat"
+          	"github.com/gerardrecinto/resonant-strike/rollback"
+          )
+          
+          var moveNames = map[rollback.MoveID]string{
+          	rollback.MoveNone: "none", rollback.MoveSlip: "slip", rollback.MoveFeint: "feint",
+          	rollback.MoveJab: "jab", rollback.MoveTeep: "teep", rollback.MoveLowKick: "low kick", rollback.MoveClinch: "clinch",
+          }
+          var judgeNames = map[rollback.TimingJudgment]string{
+          	rollback.JudgmentNone: "none", rollback.JudgmentPerfect: "perfect", rollback.JudgmentGood: "good", rollback.JudgmentMiss: "miss",
+          }
+          
+          // strike(frame, framesPerBeat, chordMask, released) -> {judgment, move, damage, stamina}
+          func strike(this js.Value, a []js.Value) any {
+          	frame, fpb := uint64(a[0].Int()), uint64(a[1].Int())
+          	chord := rollback.StanceChord(a[2].Int())
+          	released := a[3].Bool()
+          	j := combat.JudgeTiming(frame, fpb, 2, 5)
+          	m := combat.Resolve(chord, j, released)
+          	return map[string]any{
+          		"judgment": judgeNames[j], "move": moveNames[m], "damage": int(combat.Damage(m, j)),
+          		"defenderStamina": int(combat.StaminaDrainOnDefender(m)),
+          		"missCost":        int(combat.MissStaminaCost(rollback.ConditioningSnapshot{MissPenaltyScale: 10000})),
+          	}
+          }
+          
+          func main() {
+          	js.Global().Set("rsStrike", js.FuncOf(strike))
+          	js.Global().Set("__RS_READY__", true)
+          	select {}
+          }
+          GOEOF
+          GOOS=js GOARCH=wasm go build -o _site/strike.wasm ./pagesdemo
+          GOOS=js GOARCH=wasm go build -o _site/demo.wasm ./cmd/demo
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" _site/ 2>/dev/null || cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5
